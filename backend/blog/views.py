@@ -246,6 +246,25 @@ def delete_post_image(request, slug, image_id):
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
+def set_cover_image(request, slug, image_id):
+    """Set a PostImage as the cover for its post."""
+    try:
+        post = Post.objects.get(slug=slug, author=request.user)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post no encontrado.'}, status=404)
+    try:
+        img = post.images.get(id=image_id)
+        # Unset all others, set this one
+        post.images.update(is_cover=False)
+        img.is_cover = True
+        img.save()
+        return Response({'message': 'Portada actualizada.'})
+    except PostImage.DoesNotExist:
+        return Response({'error': 'Imagen no encontrada.'}, status=404)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
 def upload_post_files(request, slug):
     """Upload one or more files to a post via Cloudinary."""
     try:

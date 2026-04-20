@@ -90,6 +90,7 @@ class PostImage(models.Model):
     image_url = models.URLField(max_length=500)
     public_id = models.CharField(max_length=255, blank=True)
     resource_type = models.CharField(max_length=10, default='image')
+    is_cover = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -6,7 +6,7 @@ from .models import Post, Profile, ProfilePhoto, PostImage, PostFile
 class PostImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = PostImage
-        fields = ['id', 'image_url', 'order', 'resource_type']
+        fields = ['id', 'image_url', 'order', 'resource_type', 'is_cover']
 
 
 class PostFileSerializer(serializers.ModelSerializer):
@@ -75,7 +75,10 @@ class PostListSerializer(serializers.ModelSerializer):
         return f"{obj.author.first_name} {obj.author.last_name}".strip() or obj.author.username
 
     def get_image_url(self, obj):
-        # Return cover image (old field) or first PostImage
+        # Return cover image: is_cover PostImage > old field > first PostImage
+        cover = obj.images.filter(is_cover=True).first()
+        if cover:
+            return cover.image_url
         if obj.image:
             request = self.context.get('request')
             if request:

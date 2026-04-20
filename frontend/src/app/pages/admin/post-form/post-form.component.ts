@@ -96,7 +96,7 @@ import { forkJoin } from 'rxjs';
             </div>
             <div class="media-grid">
               @for (img of existingImages; track img.id) {
-                <div class="media-item" [class.deleting]="deletingIds.has('img-' + img.id)">
+                <div class="media-item" [class.deleting]="deletingIds.has('img-' + img.id)" [class.is-cover]="img.is_cover">
                   @if (img.resource_type === 'video') {
                     <video [src]="img.image_url" muted></video>
                   } @else {
@@ -108,9 +108,15 @@ import { forkJoin } from 'rxjs';
                       <span>Eliminando...</span>
                     </div>
                   } @else {
+                    <button type="button" class="cover-btn" [class.active]="img.is_cover" (click)="setCover(img)" title="Usar como portada">
+                      <span class="material-icons">{{ img.is_cover ? 'star' : 'star_border' }}</span>
+                    </button>
                     <button type="button" class="remove-btn" (click)="removeExistingImage(img)" title="Eliminar">
                       <span class="material-icons">close</span>
                     </button>
+                  }
+                  @if (img.is_cover) {
+                    <span class="media-badge cover-badge">Portada</span>
                   }
                 </div>
               }
@@ -295,6 +301,9 @@ import { forkJoin } from 'rxjs';
       border: 1px solid var(--border);
       aspect-ratio: 1;
     }
+    .media-item.is-cover {
+      border: 2px solid #ffc107;
+    }
     .media-item img {
       width: 100%;
       height: 100%;
@@ -323,6 +332,36 @@ import { forkJoin } from 'rxjs';
     .media-item:hover .remove-btn {
       opacity: 1;
     }
+    .cover-btn {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      color: #999;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s, color 0.2s;
+    }
+    .cover-btn .material-icons {
+      font-size: 16px;
+    }
+    .cover-btn.active {
+      opacity: 1;
+      color: #ffc107;
+    }
+    .media-item:hover .cover-btn {
+      opacity: 1;
+    }
+    .cover-btn:hover {
+      color: #ffc107;
+    }
     .media-badge {
       position: absolute;
       bottom: 4px;
@@ -332,6 +371,11 @@ import { forkJoin } from 'rxjs';
       font-size: 10px;
       padding: 2px 6px;
       border-radius: 4px;
+    }
+    .cover-badge {
+      background: rgba(255, 193, 7, 0.85) !important;
+      color: #000 !important;
+      font-weight: 600;
     }
     .new-badge {
       background: var(--primary) !important;
@@ -575,6 +619,18 @@ export class PostFormComponent implements OnInit {
 
   removeNewFile(index: number): void {
     this.newFiles.splice(index, 1);
+  }
+
+  setCover(img: PostImage): void {
+    if (img.is_cover) return;
+    this.postService.setCoverImage(this.slug, img.id).subscribe({
+      next: () => {
+        this.existingImages.forEach(i => i.is_cover = (i.id === img.id));
+      },
+      error: () => {
+        this.error = 'Error al establecer la portada.';
+      }
+    });
   }
 
   removeExistingImage(img: PostImage): void {

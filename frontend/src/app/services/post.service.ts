@@ -46,6 +46,10 @@ export class PostService {
     return this.http.delete<void>(`${this.apiUrl}/${slug}/images/${imageId}/`);
   }
 
+  setCoverImage(slug: string, imageId: number): Observable<any> {
+    return this.http.post(`${this.apiUrl}/${slug}/images/${imageId}/cover/`, {});
+  }
+
   uploadPostFiles(slug: string, files: File[]): Observable<HttpEvent<PostFileItem[]>> {
     const formData = new FormData();
     for (const file of files) {

@@ -3,6 +3,7 @@ export interface PostImage {
   image_url: string;
   order: number;
   resource_type: string;
+  is_cover: boolean;
 }
 
 export interface PostFileItem {
