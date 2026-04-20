@@ -239,7 +239,10 @@ def delete_post_image(request, slug, image_id):
     try:
         img = post.images.get(id=image_id)
         if img.public_id:
-            cloudinary.uploader.destroy(img.public_id, resource_type=img.resource_type)
+            try:
+                cloudinary.uploader.destroy(img.public_id, resource_type=img.resource_type)
+            except Exception:
+                pass  # Delete from DB even if Cloudinary fails
         img.delete()
         return Response({'message': 'Imagen eliminada.'})
     except PostImage.DoesNotExist:
@@ -285,7 +288,10 @@ def delete_post_file(request, slug, file_id):
     try:
         pf = post.files.get(id=file_id)
         if pf.public_id:
-            cloudinary.uploader.destroy(pf.public_id, resource_type='raw')
+            try:
+                cloudinary.uploader.destroy(pf.public_id, resource_type='raw')
+            except Exception:
+                pass  # Delete from DB even if Cloudinary fails
         pf.delete()
         return Response({'message': 'Archivo eliminado.'})
     except PostFile.DoesNotExist:
