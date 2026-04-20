@@ -723,7 +723,17 @@ export class PostFormComponent implements OnInit {
 
             const checkAllDone = () => {
               if (totalDone < allFiles.length) return;
-              // All uploads complete, register with backend
+              // If no uploads succeeded, stay on page and show error
+              const totalSuccess = imageResults.length + fileResults.length;
+              if (totalSuccess === 0) {
+                this.saving = false;
+                this.uploading = false;
+                if (!this.error) {
+                  this.error = 'No se pudo subir ningún archivo. Revisa la consola para más detalles.';
+                }
+                return;
+              }
+              // Register successful uploads with backend
               const registers: any[] = [];
               if (imageResults.length > 0) {
                 registers.push(this.postService.registerImages(slug, imageResults.map(r => ({
@@ -742,14 +752,19 @@ export class PostFormComponent implements OnInit {
               if (registers.length > 0) {
                 forkJoin(registers).subscribe({
                   next: () => this.router.navigate(['/admin']),
-                  error: () => {
+                  error: (err) => {
                     this.saving = false;
                     this.uploading = false;
                     this.error = 'Archivos subidos a la nube pero hubo un error al registrarlos. Intenta editarlo de nuevo.';
+                    console.error('Register error:', err);
                   }
                 });
               } else {
-                this.router.navigate(['/admin']);
+                this.saving = false;
+                this.uploading = false;
+                if (!this.error) {
+                  this.error = 'No se pudieron registrar los archivos.';
+                }
               }
             };
 

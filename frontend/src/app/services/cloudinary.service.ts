@@ -71,20 +71,37 @@ export class CloudinaryService {
 
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        const result: CloudinaryUploadResult = JSON.parse(xhr.responseText);
-        subject.next({
-          file,
-          progress: 100,
-          done: true,
-          result,
-        });
+        try {
+          const result: CloudinaryUploadResult = JSON.parse(xhr.responseText);
+          subject.next({
+            file,
+            progress: 100,
+            done: true,
+            result,
+          });
+        } catch (e) {
+          subject.next({
+            file,
+            progress: 0,
+            done: true,
+            error: 'Respuesta inválida de Cloudinary.',
+          });
+        }
         subject.complete();
       } else {
+        let errorMsg = `Error ${xhr.status}`;
+        try {
+          const body = JSON.parse(xhr.responseText);
+          if (body.error && body.error.message) {
+            errorMsg = body.error.message;
+          }
+        } catch (e) {}
+        console.error('Cloudinary upload error:', xhr.status, xhr.responseText);
         subject.next({
           file,
           progress: 0,
           done: true,
-          error: `Error ${xhr.status}: ${xhr.statusText}`,
+          error: errorMsg,
         });
         subject.complete();
       }
