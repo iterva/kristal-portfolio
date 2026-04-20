@@ -5,7 +5,10 @@ from rest_framework.authtoken.models import Token
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+import cloudinary
 import cloudinary.uploader
+import cloudinary.utils
+import time
 from .models import Post, Profile, ProfilePhoto, PostImage, PostFile
 from .serializers import (
     PostListSerializer, PostDetailSerializer, PostCreateSerializer,
@@ -301,3 +304,80 @@ def me_view(request):
         'last_name': request.user.last_name,
         'profile': ProfileSerializer(profile).data,
     })
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def cloudinary_sign(request):
+    """Generate a Cloudinary upload signature for direct browser uploads."""
+    folder = request.data.get('folder', 'posts/images')
+    resource_type = request.data.get('resource_type', 'auto')
+    timestamp = int(time.time())
+    params = {
+        'timestamp': timestamp,
+        'folder': folder,
+    }
+    signature = cloudinary.utils.api_sign_request(
+        params, cloudinary.config().api_secret
+    )
+    return Response({
+        'signature': signature,
+        'timestamp': timestamp,
+        'api_key': cloudinary.config().api_key,
+        'cloud_name': cloudinary.config().cloud_name,
+        'folder': folder,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def register_post_images(request, slug):
+    """Register Cloudinary-uploaded images to a post (no file transfer)."""
+    try:
+        post = Post.objects.get(slug=slug, author=request.user)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post no encontrado.'}, status=404)
+    items = request.data.get('items', [])
+    if not items:
+        return Response({'error': 'No se enviaron imágenes.'}, status=400)
+    order = post.images.count()
+    created = []
+    for item in items:
+        pi = PostImage.objects.create(
+            post=post,
+            image_url=item['url'],
+            public_id=item['public_id'],
+            resource_type=item.get('resource_type', 'image'),
+            order=order,
+        )
+        order += 1
+        created.append(pi)
+    serializer = PostImageSerializer(created, many=True)
+    return Response(serializer.data, status=201)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def register_post_files(request, slug):
+    """Register Cloudinary-uploaded files to a post (no file transfer)."""
+    try:
+        post = Post.objects.get(slug=slug, author=request.user)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post no encontrado.'}, status=404)
+    items = request.data.get('items', [])
+    if not items:
+        return Response({'error': 'No se enviaron archivos.'}, status=400)
+    order = post.files.count()
+    created = []
+    for item in items:
+        pf = PostFile.objects.create(
+            post=post,
+            file_url=item['url'],
+            public_id=item['public_id'],
+            file_name=item.get('file_name', ''),
+            order=order,
+        )
+        order += 1
+        created.append(pf)
+    serializer = PostFileSerializer(created, many=True)
+    return Response(serializer.data, status=201)

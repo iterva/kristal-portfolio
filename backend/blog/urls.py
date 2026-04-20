@@ -6,9 +6,12 @@ router = DefaultRouter()
 router.register(r'posts', views.PostViewSet, basename='post')
 
 urlpatterns = [
+    path('cloudinary/sign/', views.cloudinary_sign, name='cloudinary-sign'),
     path('posts/<slug:slug>/images/', views.upload_post_images, name='post-images-upload'),
+    path('posts/<slug:slug>/images/register/', views.register_post_images, name='post-images-register'),
     path('posts/<slug:slug>/images/<int:image_id>/', views.delete_post_image, name='post-image-delete'),
     path('posts/<slug:slug>/files/', views.upload_post_files, name='post-files-upload'),
+    path('posts/<slug:slug>/files/register/', views.register_post_files, name='post-files-register'),
     path('posts/<slug:slug>/files/<int:file_id>/', views.delete_post_file, name='post-file-delete'),
     path('', include(router.urls)),
     path('auth/login/', views.login_view, name='login'),

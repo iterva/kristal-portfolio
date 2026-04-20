@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PostService } from '../../../services/post.service';
+import { CloudinaryService, CloudinarySignature, CloudinaryUploadResult } from '../../../services/cloudinary.service';
 import { Post, PostImage, PostFileItem } from '../../../models/post.model';
 import { forkJoin } from 'rxjs';
 
@@ -174,6 +175,24 @@ import { forkJoin } from 'rxjs';
               <span>Publicar inmediatamente</span>
             </label>
           </div>
+
+          @if (uploading) {
+            <div class="upload-progress">
+              <div class="progress-header">
+                <span class="material-icons spin">cloud_upload</span>
+                <span>Subiendo {{ uploadCurrent }} de {{ uploadTotal }}...</span>
+              </div>
+              @for (item of uploadItems; track $index) {
+                <div class="upload-file-row">
+                  <span class="upload-file-name">{{ item.name }}</span>
+                  <span class="upload-file-pct">{{ item.progress }}%</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" [style.width.%]="item.progress"></div>
+                </div>
+              }
+            </div>
+          }
 
           <div class="form-actions">
             <a routerLink="/admin" class="btn btn-outline">Cancelar</a>
@@ -372,6 +391,61 @@ import { forkJoin } from 'rxjs';
       padding-top: 24px;
       border-top: 1px solid var(--border);
     }
+    .upload-progress {
+      background: var(--bg);
+      border: 1px solid var(--primary);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .progress-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--primary);
+      margin-bottom: 10px;
+    }
+    .progress-bar-track {
+      width: 100%;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .upload-file-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+    .upload-file-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      margin-right: 8px;
+    }
+    .upload-file-pct {
+      font-weight: 600;
+      color: var(--primary);
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spin {
+      animation: spin 2s linear infinite;
+    }
     @media (max-width: 768px) {
       .post-form { padding: 20px; }
       .media-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
@@ -388,6 +462,10 @@ export class PostFormComponent implements OnInit {
   published = true;
   error = '';
   saving = false;
+  uploading = false;
+  uploadItems: { name: string; progress: number }[] = [];
+  uploadCurrent = 0;
+  uploadTotal = 0;
 
   // Existing media from server
   existingImages: PostImage[] = [];
@@ -403,7 +481,8 @@ export class PostFormComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private postService: PostService
+    private postService: PostService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   ngOnInit(): void {
@@ -501,25 +580,119 @@ export class PostFormComponent implements OnInit {
     request$.subscribe({
       next: (post: Post) => {
         const slug = post.slug;
-        const uploads: any[] = [];
-        if (this.newImageFiles.length > 0) {
-          uploads.push(this.postService.uploadPostImages(slug, this.newImageFiles));
-        }
-        if (this.newFiles.length > 0) {
-          uploads.push(this.postService.uploadPostFiles(slug, this.newFiles));
-        }
-        if (uploads.length > 0) {
-          forkJoin(uploads).subscribe({
-            next: () => this.router.navigate(['/admin']),
-            error: (err) => {
-              this.saving = false;
-              this.error = 'El post se guardó pero hubo un error al subir archivos. Intenta editarlo y subirlos de nuevo.';
-              console.error('Error uploading files:', err);
-            }
-          });
-        } else {
+        const hasImages = this.newImageFiles.length > 0;
+        const hasFiles = this.newFiles.length > 0;
+
+        if (!hasImages && !hasFiles) {
           this.router.navigate(['/admin']);
+          return;
         }
+
+        // Prepare upload items for progress display
+        const allFiles = [...this.newImageFiles, ...this.newFiles];
+        this.uploadTotal = allFiles.length;
+        this.uploadCurrent = 0;
+        this.uploadItems = allFiles.map(f => ({ name: f.name, progress: 0 }));
+        this.uploading = true;
+
+        // Get signatures for the folders we need
+        const signRequests: any[] = [];
+        if (hasImages) {
+          signRequests.push(this.cloudinaryService.getSignature('posts/images'));
+        }
+        if (hasFiles) {
+          signRequests.push(this.cloudinaryService.getSignature('posts/files'));
+        }
+
+        forkJoin(signRequests).subscribe({
+          next: (signatures: CloudinarySignature[]) => {
+            const imgSig = hasImages ? signatures[0] : null;
+            const fileSig = hasFiles ? signatures[hasImages ? 1 : 0] : null;
+
+            const imageResults: CloudinaryUploadResult[] = [];
+            const fileResults: { result: CloudinaryUploadResult; fileName: string }[] = [];
+            let totalDone = 0;
+
+            const checkAllDone = () => {
+              if (totalDone < allFiles.length) return;
+              // All uploads complete, register with backend
+              const registers: any[] = [];
+              if (imageResults.length > 0) {
+                registers.push(this.postService.registerImages(slug, imageResults.map(r => ({
+                  url: r.secure_url,
+                  public_id: r.public_id,
+                  resource_type: r.resource_type,
+                }))));
+              }
+              if (fileResults.length > 0) {
+                registers.push(this.postService.registerFiles(slug, fileResults.map(r => ({
+                  url: r.result.secure_url,
+                  public_id: r.result.public_id,
+                  file_name: r.fileName,
+                }))));
+              }
+              if (registers.length > 0) {
+                forkJoin(registers).subscribe({
+                  next: () => this.router.navigate(['/admin']),
+                  error: () => {
+                    this.saving = false;
+                    this.uploading = false;
+                    this.error = 'Archivos subidos a la nube pero hubo un error al registrarlos. Intenta editarlo de nuevo.';
+                  }
+                });
+              } else {
+                this.router.navigate(['/admin']);
+              }
+            };
+
+            // Upload images directly to Cloudinary
+            this.newImageFiles.forEach((file, i) => {
+              const itemIndex = i;
+              this.cloudinaryService.uploadFile(file, imgSig!, 'auto').subscribe({
+                next: (progress) => {
+                  this.uploadItems[itemIndex].progress = progress.progress;
+                  if (progress.done) {
+                    if (progress.result) {
+                      imageResults.push(progress.result);
+                      this.uploadCurrent++;
+                    }
+                    if (progress.error) {
+                      this.error = `Error subiendo ${file.name}: ${progress.error}`;
+                    }
+                    totalDone++;
+                    checkAllDone();
+                  }
+                }
+              });
+            });
+
+            // Upload files directly to Cloudinary
+            this.newFiles.forEach((file, i) => {
+              const itemIndex = this.newImageFiles.length + i;
+              this.cloudinaryService.uploadFile(file, fileSig!, 'raw').subscribe({
+                next: (progress) => {
+                  this.uploadItems[itemIndex].progress = progress.progress;
+                  if (progress.done) {
+                    if (progress.result) {
+                      fileResults.push({ result: progress.result, fileName: file.name });
+                      this.uploadCurrent++;
+                    }
+                    if (progress.error) {
+                      this.error = `Error subiendo ${file.name}: ${progress.error}`;
+                    }
+                    totalDone++;
+                    checkAllDone();
+                  }
+                }
+              });
+            });
+          },
+          error: () => {
+            this.saving = false;
+            this.uploading = false;
+            this.error = 'Error al preparar la subida. Intenta de nuevo.';
+          }
+        });
       },
       error: (err) => {
         this.error = 'Error al guardar el proyecto. Verifica los datos e intenta de nuevo.';
