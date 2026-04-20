@@ -545,6 +545,10 @@ export class PostFormComponent implements OnInit {
     this.postService.deletePostImage(this.slug, img.id).subscribe({
       next: () => {
         this.existingImages = this.existingImages.filter(i => i.id !== img.id);
+      },
+      error: (err) => {
+        console.error('Error eliminando imagen:', err);
+        this.error = 'Error al eliminar la imagen.';
       }
     });
   }
@@ -553,6 +557,10 @@ export class PostFormComponent implements OnInit {
     this.postService.deletePostFile(this.slug, file.id).subscribe({
       next: () => {
         this.existingFiles = this.existingFiles.filter(f => f.id !== file.id);
+      },
+      error: (err) => {
+        console.error('Error eliminando archivo:', err);
+        this.error = 'Error al eliminar el archivo.';
       }
     });
   }
