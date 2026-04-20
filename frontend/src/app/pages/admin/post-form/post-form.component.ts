@@ -96,15 +96,22 @@ import { forkJoin } from 'rxjs';
             </div>
             <div class="media-grid">
               @for (img of existingImages; track img.id) {
-                <div class="media-item">
+                <div class="media-item" [class.deleting]="deletingIds.has('img-' + img.id)">
                   @if (img.resource_type === 'video') {
                     <video [src]="img.image_url" muted></video>
                   } @else {
                     <img [src]="img.image_url" alt="Imagen">
                   }
-                  <button type="button" class="remove-btn" (click)="removeExistingImage(img)" title="Eliminar">
-                    <span class="material-icons">close</span>
-                  </button>
+                  @if (deletingIds.has('img-' + img.id)) {
+                    <div class="deleting-overlay">
+                      <span class="material-icons spin">autorenew</span>
+                      <span>Eliminando...</span>
+                    </div>
+                  } @else {
+                    <button type="button" class="remove-btn" (click)="removeExistingImage(img)" title="Eliminar">
+                      <span class="material-icons">close</span>
+                    </button>
+                  }
                 </div>
               }
               @if (existingCoverUrl) {
@@ -143,12 +150,17 @@ import { forkJoin } from 'rxjs';
             </div>
             <div class="files-list">
               @for (file of existingFiles; track file.id) {
-                <div class="file-item">
-                  <span class="material-icons file-icon">description</span>
-                  <span class="file-name">{{ file.file_name }}</span>
-                  <button type="button" class="remove-btn-inline" (click)="removeExistingFile(file)" title="Eliminar">
-                    <span class="material-icons">close</span>
-                  </button>
+                <div class="file-item" [class.deleting]="deletingIds.has('file-' + file.id)">
+                  @if (deletingIds.has('file-' + file.id)) {
+                    <span class="material-icons file-icon spin">autorenew</span>
+                    <span class="file-name">Eliminando {{ file.file_name }}...</span>
+                  } @else {
+                    <span class="material-icons file-icon">description</span>
+                    <span class="file-name">{{ file.file_name }}</span>
+                    <button type="button" class="remove-btn-inline" (click)="removeExistingFile(file)" title="Eliminar">
+                      <span class="material-icons">close</span>
+                    </button>
+                  }
                 </div>
               }
               @if (existingLegacyFileName) {
@@ -439,12 +451,35 @@ import { forkJoin } from 'rxjs';
       font-weight: 600;
       color: var(--primary);
     }
+    .media-item.deleting {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .deleting-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: #fff;
+      font-size: 11px;
+    }
+    .deleting-overlay .material-icons {
+      font-size: 24px;
+    }
+    .file-item.deleting {
+      opacity: 0.6;
+      pointer-events: none;
+    }
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
     .spin {
-      animation: spin 2s linear infinite;
+      animation: spin 1s linear infinite;
     }
     @media (max-width: 768px) {
       .post-form { padding: 20px; }
@@ -466,6 +501,7 @@ export class PostFormComponent implements OnInit {
   uploadItems: { name: string; progress: number }[] = [];
   uploadCurrent = 0;
   uploadTotal = 0;
+  deletingIds = new Set<string>();
 
   // Existing media from server
   existingImages: PostImage[] = [];
@@ -542,11 +578,15 @@ export class PostFormComponent implements OnInit {
   }
 
   removeExistingImage(img: PostImage): void {
+    const key = 'img-' + img.id;
+    this.deletingIds.add(key);
     this.postService.deletePostImage(this.slug, img.id).subscribe({
       next: () => {
+        this.deletingIds.delete(key);
         this.existingImages = this.existingImages.filter(i => i.id !== img.id);
       },
       error: (err) => {
+        this.deletingIds.delete(key);
         console.error('Error eliminando imagen:', err);
         this.error = 'Error al eliminar la imagen.';
       }
@@ -554,11 +594,15 @@ export class PostFormComponent implements OnInit {
   }
 
   removeExistingFile(file: PostFileItem): void {
+    const key = 'file-' + file.id;
+    this.deletingIds.add(key);
     this.postService.deletePostFile(this.slug, file.id).subscribe({
       next: () => {
+        this.deletingIds.delete(key);
         this.existingFiles = this.existingFiles.filter(f => f.id !== file.id);
       },
       error: (err) => {
+        this.deletingIds.delete(key);
         console.error('Error eliminando archivo:', err);
         this.error = 'Error al eliminar el archivo.';
       }
