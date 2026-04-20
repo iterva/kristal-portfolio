@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { PostService } from '../../services/post.service';
 import { Post } from '../../models/post.model';
 
@@ -62,7 +63,22 @@ import { Post } from '../../models/post.model';
 
           <div class="article-content" [innerHTML]="formatContent(post.content)"></div>
 
-          @if (post.file_url || (post.all_files && post.all_files.length > 0)) {
+          @if (youtubeEmbeds.length > 0) {
+            <div class="youtube-section">
+              @for (embed of youtubeEmbeds; track $index) {
+                <div class="youtube-embed">
+                  <iframe
+                    [src]="embed"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                  ></iframe>
+                </div>
+              }
+            </div>
+          }
+
+          @if (post.file_url || (post.all_files && post.all_files.length > 0) || externalLinksList.length > 0) {
             <div class="download-section">
               @if (post.file_url) {
                 <div class="download-card">
@@ -87,6 +103,19 @@ import { Post } from '../../models/post.model';
                   <a [href]="file.file_url" download class="btn btn-primary">
                     <span class="material-icons" style="font-size: 18px">download</span>
                     Descargar
+                  </a>
+                </div>
+              }
+              @for (link of externalLinksList; track $index) {
+                <div class="download-card external">
+                  <span class="material-icons download-icon">cloud_download</span>
+                  <div class="download-info">
+                    <p class="download-name">{{ link.name }}</p>
+                    <p class="download-hint">Enlace externo ({{ link.host }})</p>
+                  </div>
+                  <a [href]="link.url" target="_blank" rel="noopener" class="btn btn-primary">
+                    <span class="material-icons" style="font-size: 18px">open_in_new</span>
+                    Abrir
                   </a>
                 </div>
               }
@@ -172,6 +201,27 @@ import { Post } from '../../models/post.model';
       line-height: 1.8;
       color: var(--text);
     }
+    .youtube-section {
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .youtube-embed {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .youtube-embed iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
     .download-section {
       margin-top: 40px;
       padding-top: 32px;
@@ -188,6 +238,10 @@ import { Post } from '../../models/post.model';
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
+    }
+    .download-card.external {
+      border-color: var(--primary);
+      border-style: dashed;
     }
     .download-icon {
       font-size: 40px;
@@ -304,10 +358,13 @@ export class PostDetailComponent implements OnInit {
   post: Post | null = null;
   loading = true;
   modalImage: string | null = null;
+  youtubeEmbeds: SafeResourceUrl[] = [];
+  externalLinksList: { url: string; name: string; host: string }[] = [];
 
   constructor(
     private route: ActivatedRoute,
-    private postService: PostService
+    private postService: PostService,
+    private sanitizer: DomSanitizer,
   ) {}
 
   ngOnInit(): void {
@@ -317,11 +374,62 @@ export class PostDetailComponent implements OnInit {
         next: (post) => {
           this.post = post;
           this.loading = false;
+          this.parseYoutubeUrls(post.youtube_urls || '');
+          this.parseExternalLinks(post.external_links || '');
         },
         error: () => {
           this.loading = false;
         }
       });
+    }
+  }
+
+  private parseYoutubeUrls(text: string): void {
+    this.youtubeEmbeds = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(url => this.extractYoutubeId(url))
+      .filter((id): id is string => id !== null)
+      .map(id => this.sanitizer.bypassSecurityTrustResourceUrl(`https://www.youtube.com/embed/${id}`));
+  }
+
+  private extractYoutubeId(url: string): string | null {
+    // youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
+    const patterns = [
+      /(?:youtube\.com\/watch\?.*v=)([\w-]{11})/,
+      /(?:youtu\.be\/)([\w-]{11})/,
+      /(?:youtube\.com\/embed\/)([\w-]{11})/,
+    ];
+    for (const p of patterns) {
+      const match = url.match(p);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  private parseExternalLinks(text: string): void {
+    this.externalLinksList = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => {
+        const parts = line.split('|').map(p => p.trim());
+        const url = parts[0];
+        const name = parts[1] || this.fileNameFromUrl(url);
+        let host = '';
+        try { host = new URL(url).hostname.replace('www.', ''); } catch {}
+        return { url, name, host };
+      });
+  }
+
+  private fileNameFromUrl(url: string): string {
+    try {
+      const path = new URL(url).pathname;
+      const name = path.split('/').pop();
+      return name || 'Archivo externo';
+    } catch {
+      return 'Archivo externo';
     }
   }
 

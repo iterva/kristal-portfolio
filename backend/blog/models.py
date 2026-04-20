@@ -25,6 +25,8 @@ class Post(models.Model):
     file = models.FileField(upload_to=post_file_path, blank=True, null=True)
     file_name = models.CharField(max_length=255, blank=True)
     tags = models.CharField(max_length=500, blank=True, help_text="Comma-separated tags")
+    youtube_urls = models.TextField(blank=True, help_text="One YouTube URL per line")
+    external_links = models.TextField(blank=True, help_text="External download links, one per line: URL|Name")
     published = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

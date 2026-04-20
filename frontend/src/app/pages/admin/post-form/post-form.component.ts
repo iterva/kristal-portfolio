@@ -187,6 +187,40 @@ import { forkJoin } from 'rxjs';
             </div>
           </div>
 
+          <!-- YouTube -->
+          <div class="form-group">
+            <label for="youtubeUrls">
+              <span class="material-icons" style="font-size: 18px; vertical-align: middle; color: #f00">smart_display</span>
+              Videos de YouTube
+            </label>
+            <textarea
+              id="youtubeUrls"
+              [(ngModel)]="youtubeUrls"
+              name="youtubeUrls"
+              class="form-control"
+              placeholder="Pega links de YouTube, uno por línea&#10;https://www.youtube.com/watch?v=...&#10;https://youtu.be/..."
+              rows="3"
+            ></textarea>
+            <small class="form-hint">Los videos se mostrarán embebidos en el post.</small>
+          </div>
+
+          <!-- Links externos -->
+          <div class="form-group">
+            <label for="externalLinks">
+              <span class="material-icons" style="font-size: 18px; vertical-align: middle; color: var(--primary)">link</span>
+              Links externos (Google Drive, Mega, etc.)
+            </label>
+            <textarea
+              id="externalLinks"
+              [(ngModel)]="externalLinks"
+              name="externalLinks"
+              class="form-control"
+              placeholder="Un link por línea. Formato: URL | Nombre&#10;https://drive.google.com/file/d/.../view | Modelo 3D.blend&#10;https://mega.nz/file/... | Texturas HD"
+              rows="3"
+            ></textarea>
+            <small class="form-hint">Se mostrarán como botones de descarga. Usa | para separar URL y nombre.</small>
+          </div>
+
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" [(ngModel)]="published" name="published">
@@ -518,6 +552,12 @@ import { forkJoin } from 'rxjs';
       opacity: 0.6;
       pointer-events: none;
     }
+    .form-hint {
+      display: block;
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
@@ -538,6 +578,8 @@ export class PostFormComponent implements OnInit {
   excerpt = '';
   content = '';
   tags = '';
+  youtubeUrls = '';
+  externalLinks = '';
   published = true;
   error = '';
   saving = false;
@@ -576,6 +618,8 @@ export class PostFormComponent implements OnInit {
           this.excerpt = post.excerpt;
           this.content = post.content;
           this.tags = post.tags_list.join(', ');
+          this.youtubeUrls = post.youtube_urls || '';
+          this.externalLinks = post.external_links || '';
           this.published = post.published;
           this.existingCoverUrl = post.image_url;
           this.existingLegacyFileName = post.file_name;
@@ -586,11 +630,23 @@ export class PostFormComponent implements OnInit {
     }
   }
 
+  private readonly MAX_IMAGE_MB = 10;
+  private readonly MAX_VIDEO_MB = 100;
+  private readonly MAX_FILE_MB = 100;
+
   onImagesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files) {
       for (let i = 0; i < input.files.length; i++) {
         const file = input.files[i];
+        const sizeMB = file.size / (1024 * 1024);
+        const isVideo = file.type.startsWith('video/');
+        const limit = isVideo ? this.MAX_VIDEO_MB : this.MAX_IMAGE_MB;
+        if (sizeMB > limit) {
+          this.error = `"${file.name}" pesa ${sizeMB.toFixed(1)} MB. El máximo para ${isVideo ? 'videos' : 'imágenes'} es ${limit} MB.`;
+          input.value = '';
+          return;
+        }
         this.newImageFiles.push(file);
         const reader = new FileReader();
         reader.onload = () => {
@@ -598,6 +654,7 @@ export class PostFormComponent implements OnInit {
         };
         reader.readAsDataURL(file);
       }
+      this.error = '';
       input.value = '';
     }
   }
@@ -606,6 +663,13 @@ export class PostFormComponent implements OnInit {
     const input = event.target as HTMLInputElement;
     if (input.files) {
       for (let i = 0; i < input.files.length; i++) {
+        const file = input.files[i];
+        const sizeMB = file.size / (1024 * 1024);
+        if (sizeMB > this.MAX_FILE_MB) {
+          this.error = `"${file.name}" pesa ${sizeMB.toFixed(1)} MB. El máximo es ${this.MAX_FILE_MB} MB.`;
+          input.value = '';
+          return;
+        }
         this.newFiles.push(input.files[i]);
       }
       input.value = '';
@@ -679,6 +743,8 @@ export class PostFormComponent implements OnInit {
     formData.append('excerpt', this.excerpt);
     formData.append('content', this.content);
     formData.append('tags', this.tags);
+    formData.append('youtube_urls', this.youtubeUrls);
+    formData.append('external_links', this.externalLinks);
     formData.append('published', this.published.toString());
 
     const request$ = this.isEditing

@@ -114,7 +114,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'slug', 'excerpt', 'content', 'image_url',
             'file_url', 'file_name', 'tags_list', 'author', 'published',
-            'created_at', 'updated_at', 'images', 'all_files',
+            'created_at', 'updated_at', 'images', 'all_files', 'youtube_urls', 'external_links',
         ]
 
     def get_image_url(self, obj):
@@ -150,7 +150,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ['slug', 'title', 'excerpt', 'content', 'image', 'file', 'tags', 'published']
+        fields = ['slug', 'title', 'excerpt', 'content', 'image', 'file', 'tags', 'youtube_urls', 'external_links', 'published']
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user

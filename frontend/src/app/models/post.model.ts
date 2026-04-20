@@ -23,6 +23,8 @@ export interface Post {
   file_url: string | null;
   file_name: string;
   tags_list: string[];
+  youtube_urls: string;
+  external_links: string;
   author_name?: string;
   author?: Author;
   published: boolean;
