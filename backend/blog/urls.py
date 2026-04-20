@@ -16,4 +16,8 @@ urlpatterns = [
     path('profile/photos/<int:photo_id>/', views.delete_profile_photo, name='profile-photo-delete'),
     path('profile/logo/', views.upload_logo, name='profile-logo-upload'),
     path('profile/logo/delete/', views.delete_logo, name='profile-logo-delete'),
+    path('posts/<slug:slug>/images/', views.upload_post_images, name='post-images-upload'),
+    path('posts/<slug:slug>/images/<int:image_id>/', views.delete_post_image, name='post-image-delete'),
+    path('posts/<slug:slug>/files/', views.upload_post_files, name='post-files-upload'),
+    path('posts/<slug:slug>/files/<int:file_id>/', views.delete_post_file, name='post-file-delete'),
 ]

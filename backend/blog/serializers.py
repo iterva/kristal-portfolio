@@ -1,6 +1,34 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Post, Profile, ProfilePhoto
+from .models import Post, Profile, ProfilePhoto, PostImage, PostFile
+
+
+class PostImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PostImage
+        fields = ['id', 'image_url', 'order']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.image.url)
+        return obj.image.url
+
+
+class PostFileSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PostFile
+        fields = ['id', 'file_url', 'file_name', 'order']
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url
 
 
 class ProfilePhotoSerializer(serializers.ModelSerializer):
@@ -49,24 +77,32 @@ class PostListSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
     tags_list = serializers.SerializerMethodField()
+    files_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         fields = [
             'id', 'title', 'slug', 'excerpt', 'image_url',
             'tags_list', 'author_name', 'published', 'created_at', 'updated_at',
-            'file_name',
+            'files_count',
         ]
 
     def get_author_name(self, obj):
         return f"{obj.author.first_name} {obj.author.last_name}".strip() or obj.author.username
 
     def get_image_url(self, obj):
+        # Return cover image (old field) or first PostImage
         if obj.image:
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(obj.image.url)
             return obj.image.url
+        first_img = obj.images.first()
+        if first_img:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(first_img.image.url)
+            return first_img.image.url
         return None
 
     def get_tags_list(self, obj):
@@ -74,19 +110,27 @@ class PostListSerializer(serializers.ModelSerializer):
             return [t.strip() for t in obj.tags.split(',') if t.strip()]
         return []
 
+    def get_files_count(self, obj):
+        count = obj.files.count()
+        if obj.file:
+            count += 1
+        return count
+
 
 class PostDetailSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     image_url = serializers.SerializerMethodField()
     file_url = serializers.SerializerMethodField()
     tags_list = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
+    all_files = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         fields = [
             'id', 'title', 'slug', 'excerpt', 'content', 'image_url',
             'file_url', 'file_name', 'tags_list', 'author', 'published',
-            'created_at', 'updated_at',
+            'created_at', 'updated_at', 'images', 'all_files',
         ]
 
     def get_image_url(self, obj):
@@ -109,6 +153,12 @@ class PostDetailSerializer(serializers.ModelSerializer):
         if obj.tags:
             return [t.strip() for t in obj.tags.split(',') if t.strip()]
         return []
+
+    def get_images(self, obj):
+        return PostImageSerializer(obj.images.all(), many=True, context=self.context).data
+
+    def get_all_files(self, obj):
+        return PostFileSerializer(obj.files.all(), many=True, context=self.context).data
 
 
 class PostCreateSerializer(serializers.ModelSerializer):

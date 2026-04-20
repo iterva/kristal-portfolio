@@ -5,10 +5,10 @@ from rest_framework.authtoken.models import Token
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from .models import Post, Profile, ProfilePhoto
+from .models import Post, Profile, ProfilePhoto, PostImage, PostFile
 from .serializers import (
     PostListSerializer, PostDetailSerializer, PostCreateSerializer,
-    ProfileSerializer, AuthorSerializer,
+    ProfileSerializer, AuthorSerializer, PostImageSerializer, PostFileSerializer,
 )
 
 
@@ -194,6 +194,82 @@ def delete_logo(request):
         profile.logo = None
         profile.save()
     return Response({'message': 'Logo eliminado.'})
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def upload_post_images(request, slug):
+    """Upload one or more images to a post."""
+    try:
+        post = Post.objects.get(slug=slug, author=request.user)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post no encontrado.'}, status=404)
+    images = request.FILES.getlist('images')
+    if not images:
+        return Response({'error': 'No se enviaron imágenes.'}, status=400)
+    order = post.images.count()
+    created = []
+    for img in images:
+        pi = PostImage.objects.create(post=post, image=img, order=order)
+        order += 1
+        created.append(pi)
+    serializer = PostImageSerializer(created, many=True, context={'request': request})
+    return Response(serializer.data, status=201)
+
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def delete_post_image(request, slug, image_id):
+    """Delete an image from a post."""
+    try:
+        post = Post.objects.get(slug=slug, author=request.user)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post no encontrado.'}, status=404)
+    try:
+        img = post.images.get(id=image_id)
+        img.image.delete()
+        img.delete()
+        return Response({'message': 'Imagen eliminada.'})
+    except PostImage.DoesNotExist:
+        return Response({'error': 'Imagen no encontrada.'}, status=404)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def upload_post_files(request, slug):
+    """Upload one or more files to a post."""
+    try:
+        post = Post.objects.get(slug=slug, author=request.user)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post no encontrado.'}, status=404)
+    files = request.FILES.getlist('files')
+    if not files:
+        return Response({'error': 'No se enviaron archivos.'}, status=400)
+    order = post.files.count()
+    created = []
+    for f in files:
+        pf = PostFile.objects.create(post=post, file=f, order=order)
+        order += 1
+        created.append(pf)
+    serializer = PostFileSerializer(created, many=True, context={'request': request})
+    return Response(serializer.data, status=201)
+
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def delete_post_file(request, slug, file_id):
+    """Delete a file from a post."""
+    try:
+        post = Post.objects.get(slug=slug, author=request.user)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post no encontrado.'}, status=404)
+    try:
+        pf = post.files.get(id=file_id)
+        pf.file.delete()
+        pf.delete()
+        return Response({'message': 'Archivo eliminado.'})
+    except PostFile.DoesNotExist:
+        return Response({'error': 'Archivo no encontrado.'}, status=404)
 
 
 @api_view(['GET'])

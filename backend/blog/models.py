@@ -83,3 +83,35 @@ class ProfilePhoto(models.Model):
 
     def __str__(self):
         return f"Photo {self.order} of {self.profile.user.username}"
+
+
+class PostImage(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to=post_image_path)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return f"Image {self.order} of {self.post.title}"
+
+
+class PostFile(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='files')
+    file = models.FileField(upload_to=post_file_path)
+    file_name = models.CharField(max_length=255, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return f"File {self.file_name} of {self.post.title}"
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_name:
+            self.file_name = os.path.basename(self.file.name)
+        super().save(*args, **kwargs)

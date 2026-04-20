@@ -1,3 +1,16 @@
+export interface PostImage {
+  id: number;
+  image_url: string;
+  order: number;
+}
+
+export interface PostFileItem {
+  id: number;
+  file_url: string;
+  file_name: string;
+  order: number;
+}
+
 export interface Post {
   id: number;
   title: string;
@@ -13,6 +26,9 @@ export interface Post {
   published: boolean;
   created_at: string;
   updated_at: string;
+  images: PostImage[];
+  all_files: PostFileItem[];
+  files_count?: number;
 }
 
 export interface Author {

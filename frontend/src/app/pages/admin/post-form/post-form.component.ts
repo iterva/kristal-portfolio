@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PostService } from '../../../services/post.service';
-import { Post } from '../../../models/post.model';
+import { Post, PostImage, PostFileItem } from '../../../models/post.model';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-post-form',
@@ -75,46 +76,90 @@ import { Post } from '../../../models/post.model';
             >
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="image">Imagen del proyecto</label>
-              <div class="file-input-wrapper">
-                <input
-                  type="file"
-                  id="image"
-                  (change)="onImageSelected($event)"
-                  accept="image/*"
-                  class="file-input"
-                >
-                <label for="image" class="file-label">
-                  <span class="material-icons">image</span>
-                  {{ imageFile ? imageFile.name : 'Seleccionar imagen' }}
-                </label>
-              </div>
-              @if (existingImageUrl && !imageFile) {
-                <img [src]="existingImageUrl" class="preview-img" alt="Preview">
+          <!-- Imágenes -->
+          <div class="form-group">
+            <label>Imágenes del proyecto</label>
+            <div class="file-input-wrapper">
+              <input
+                type="file"
+                id="images"
+                (change)="onImagesSelected($event)"
+                accept="image/*"
+                multiple
+                class="file-input"
+              >
+              <label for="images" class="file-label">
+                <span class="material-icons">add_photo_alternate</span>
+                Seleccionar imágenes
+              </label>
+            </div>
+            <div class="media-grid">
+              @for (img of existingImages; track img.id) {
+                <div class="media-item">
+                  <img [src]="img.image_url" alt="Imagen">
+                  <button type="button" class="remove-btn" (click)="removeExistingImage(img)" title="Eliminar">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
               }
-              @if (imagePreview) {
-                <img [src]="imagePreview" class="preview-img" alt="Preview">
+              @if (existingCoverUrl) {
+                <div class="media-item">
+                  <img [src]="existingCoverUrl" alt="Portada">
+                  <span class="media-badge">Portada antigua</span>
+                </div>
+              }
+              @for (preview of newImagePreviews; track $index) {
+                <div class="media-item new-item">
+                  <img [src]="preview" alt="Nueva imagen">
+                  <button type="button" class="remove-btn" (click)="removeNewImage($index)" title="Eliminar">
+                    <span class="material-icons">close</span>
+                  </button>
+                  <span class="media-badge new-badge">Nueva</span>
+                </div>
               }
             </div>
+          </div>
 
-            <div class="form-group">
-              <label for="file">Archivo adjunto (opcional)</label>
-              <div class="file-input-wrapper">
-                <input
-                  type="file"
-                  id="file"
-                  (change)="onFileSelected($event)"
-                  class="file-input"
-                >
-                <label for="file" class="file-label">
-                  <span class="material-icons">attach_file</span>
-                  {{ attachmentFile ? attachmentFile.name : 'Seleccionar archivo' }}
-                </label>
-              </div>
-              @if (existingFileName) {
-                <p class="existing-file">Archivo actual: {{ existingFileName }}</p>
+          <!-- Archivos -->
+          <div class="form-group">
+            <label>Archivos adjuntos</label>
+            <div class="file-input-wrapper">
+              <input
+                type="file"
+                id="files"
+                (change)="onFilesSelected($event)"
+                multiple
+                class="file-input"
+              >
+              <label for="files" class="file-label">
+                <span class="material-icons">attach_file</span>
+                Seleccionar archivos
+              </label>
+            </div>
+            <div class="files-list">
+              @for (file of existingFiles; track file.id) {
+                <div class="file-item">
+                  <span class="material-icons file-icon">description</span>
+                  <span class="file-name">{{ file.file_name }}</span>
+                  <button type="button" class="remove-btn-inline" (click)="removeExistingFile(file)" title="Eliminar">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+              }
+              @if (existingLegacyFileName) {
+                <div class="file-item">
+                  <span class="material-icons file-icon">description</span>
+                  <span class="file-name">{{ existingLegacyFileName }} (antiguo)</span>
+                </div>
+              }
+              @for (file of newFiles; track $index) {
+                <div class="file-item new-item">
+                  <span class="material-icons file-icon">note_add</span>
+                  <span class="file-name">{{ file.name }}</span>
+                  <button type="button" class="remove-btn-inline" (click)="removeNewFile($index)" title="Eliminar">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
               }
             </div>
           </div>
@@ -180,11 +225,6 @@ import { Post } from '../../../models/post.model';
       font-size: 14px;
       margin-bottom: 20px;
     }
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
     .file-input {
       display: none;
     }
@@ -192,7 +232,7 @@ import { Post } from '../../../models/post.model';
       position: relative;
     }
     .file-label {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 8px;
       padding: 12px 16px;
@@ -207,15 +247,105 @@ import { Post } from '../../../models/post.model';
     .file-label:hover {
       border-color: var(--primary);
     }
-    .preview-img {
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
       margin-top: 12px;
-      max-height: 150px;
-      border-radius: 8px;
     }
-    .existing-file {
-      margin-top: 8px;
+    .media-item {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      aspect-ratio: 1;
+    }
+    .media-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .media-item .remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      color: #fff;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .media-item .remove-btn .material-icons {
+      font-size: 16px;
+    }
+    .media-item:hover .remove-btn {
+      opacity: 1;
+    }
+    .media-badge {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .new-badge {
+      background: var(--primary) !important;
+    }
+    .files-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .file-item.new-item {
+      border-color: var(--primary);
+      border-style: dashed;
+    }
+    .file-icon {
+      font-size: 20px;
       color: var(--primary);
-      font-size: 13px;
+    }
+    .file-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .remove-btn-inline {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      transition: color 0.2s;
+    }
+    .remove-btn-inline:hover {
+      color: var(--danger);
+    }
+    .remove-btn-inline .material-icons {
+      font-size: 18px;
     }
     .checkbox-label {
       display: flex;
@@ -239,8 +369,8 @@ import { Post } from '../../../models/post.model';
       border-top: 1px solid var(--border);
     }
     @media (max-width: 768px) {
-      .form-row { grid-template-columns: 1fr; }
       .post-form { padding: 20px; }
+      .media-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
     }
   `]
 })
@@ -252,13 +382,19 @@ export class PostFormComponent implements OnInit {
   content = '';
   tags = '';
   published = true;
-  imageFile: File | null = null;
-  imagePreview: string | null = null;
-  attachmentFile: File | null = null;
-  existingImageUrl: string | null = null;
-  existingFileName = '';
   error = '';
   saving = false;
+
+  // Existing media from server
+  existingImages: PostImage[] = [];
+  existingFiles: PostFileItem[] = [];
+  existingCoverUrl: string | null = null;
+  existingLegacyFileName = '';
+
+  // New files to upload
+  newImageFiles: File[] = [];
+  newImagePreviews: string[] = [];
+  newFiles: File[] = [];
 
   constructor(
     private route: ActivatedRoute,
@@ -278,30 +414,64 @@ export class PostFormComponent implements OnInit {
           this.content = post.content;
           this.tags = post.tags_list.join(', ');
           this.published = post.published;
-          this.existingImageUrl = post.image_url;
-          this.existingFileName = post.file_name;
+          this.existingCoverUrl = post.image_url;
+          this.existingLegacyFileName = post.file_name;
+          this.existingImages = post.images || [];
+          this.existingFiles = post.all_files || [];
         }
       });
     }
   }
 
-  onImageSelected(event: Event): void {
+  onImagesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      this.imageFile = input.files[0];
-      const reader = new FileReader();
-      reader.onload = () => {
-        this.imagePreview = reader.result as string;
-      };
-      reader.readAsDataURL(this.imageFile);
+    if (input.files) {
+      for (let i = 0; i < input.files.length; i++) {
+        const file = input.files[i];
+        this.newImageFiles.push(file);
+        const reader = new FileReader();
+        reader.onload = () => {
+          this.newImagePreviews.push(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+      input.value = '';
     }
   }
 
-  onFileSelected(event: Event): void {
+  onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      this.attachmentFile = input.files[0];
+    if (input.files) {
+      for (let i = 0; i < input.files.length; i++) {
+        this.newFiles.push(input.files[i]);
+      }
+      input.value = '';
     }
+  }
+
+  removeNewImage(index: number): void {
+    this.newImageFiles.splice(index, 1);
+    this.newImagePreviews.splice(index, 1);
+  }
+
+  removeNewFile(index: number): void {
+    this.newFiles.splice(index, 1);
+  }
+
+  removeExistingImage(img: PostImage): void {
+    this.postService.deletePostImage(this.slug, img.id).subscribe({
+      next: () => {
+        this.existingImages = this.existingImages.filter(i => i.id !== img.id);
+      }
+    });
+  }
+
+  removeExistingFile(file: PostFileItem): void {
+    this.postService.deletePostFile(this.slug, file.id).subscribe({
+      next: () => {
+        this.existingFiles = this.existingFiles.filter(f => f.id !== file.id);
+      }
+    });
   }
 
   onSubmit(): void {
@@ -320,20 +490,31 @@ export class PostFormComponent implements OnInit {
     formData.append('tags', this.tags);
     formData.append('published', this.published.toString());
 
-    if (this.imageFile) {
-      formData.append('image', this.imageFile);
-    }
-    if (this.attachmentFile) {
-      formData.append('file', this.attachmentFile);
-    }
-
     const request$ = this.isEditing
       ? this.postService.updatePost(this.slug, formData)
       : this.postService.createPost(formData);
 
     request$.subscribe({
-      next: () => {
-        this.router.navigate(['/admin']);
+      next: (post: Post) => {
+        const slug = post.slug;
+        const uploads: any[] = [];
+        if (this.newImageFiles.length > 0) {
+          uploads.push(this.postService.uploadPostImages(slug, this.newImageFiles));
+        }
+        if (this.newFiles.length > 0) {
+          uploads.push(this.postService.uploadPostFiles(slug, this.newFiles));
+        }
+        if (uploads.length > 0) {
+          forkJoin(uploads).subscribe({
+            next: () => this.router.navigate(['/admin']),
+            error: (err) => {
+              console.error('Error uploading files:', err);
+              this.router.navigate(['/admin']);
+            }
+          });
+        } else {
+          this.router.navigate(['/admin']);
+        }
       },
       error: (err) => {
         this.error = 'Error al guardar el proyecto. Verifica los datos e intenta de nuevo.';

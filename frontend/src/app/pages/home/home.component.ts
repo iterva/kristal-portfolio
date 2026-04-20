@@ -72,10 +72,10 @@ import { Post, PaginatedResponse, ProfileResponse, ProfilePhoto } from '../../mo
                 <p class="post-excerpt">{{ post.excerpt }}</p>
                 <div class="post-meta">
                   <span>{{ post.created_at | date:'mediumDate' }}</span>
-                  @if (post.file_name) {
+                  @if (post.files_count) {
                     <span class="has-file">
                       <span class="material-icons" style="font-size: 14px">attach_file</span>
-                      Archivo adjunto
+                      {{ post.files_count }} archivo{{ post.files_count! > 1 ? 's' : '' }}
                     </span>
                   }
                 </div>
