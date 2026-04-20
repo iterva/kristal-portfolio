@@ -5,6 +5,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+import cloudinary.uploader
 from .models import Post, Profile, ProfilePhoto, PostImage, PostFile
 from .serializers import (
     PostListSerializer, PostDetailSerializer, PostCreateSerializer,
@@ -199,7 +200,7 @@ def delete_logo(request):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def upload_post_images(request, slug):
-    """Upload one or more images to a post."""
+    """Upload one or more images/videos to a post via Cloudinary."""
     try:
         post = Post.objects.get(slug=slug, author=request.user)
     except Post.DoesNotExist:
@@ -210,24 +211,32 @@ def upload_post_images(request, slug):
     order = post.images.count()
     created = []
     for img in images:
-        pi = PostImage.objects.create(post=post, image=img, order=order)
+        result = cloudinary.uploader.upload(img, resource_type='auto', folder='posts/images')
+        pi = PostImage.objects.create(
+            post=post,
+            image_url=result['secure_url'],
+            public_id=result['public_id'],
+            resource_type=result.get('resource_type', 'image'),
+            order=order,
+        )
         order += 1
         created.append(pi)
-    serializer = PostImageSerializer(created, many=True, context={'request': request})
+    serializer = PostImageSerializer(created, many=True)
     return Response(serializer.data, status=201)
 
 
 @api_view(['DELETE'])
 @permission_classes([permissions.IsAuthenticated])
 def delete_post_image(request, slug, image_id):
-    """Delete an image from a post."""
+    """Delete an image from a post and Cloudinary."""
     try:
         post = Post.objects.get(slug=slug, author=request.user)
     except Post.DoesNotExist:
         return Response({'error': 'Post no encontrado.'}, status=404)
     try:
         img = post.images.get(id=image_id)
-        img.image.delete()
+        if img.public_id:
+            cloudinary.uploader.destroy(img.public_id, resource_type=img.resource_type)
         img.delete()
         return Response({'message': 'Imagen eliminada.'})
     except PostImage.DoesNotExist:
@@ -237,7 +246,7 @@ def delete_post_image(request, slug, image_id):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def upload_post_files(request, slug):
-    """Upload one or more files to a post."""
+    """Upload one or more files to a post via Cloudinary."""
     try:
         post = Post.objects.get(slug=slug, author=request.user)
     except Post.DoesNotExist:
@@ -248,24 +257,32 @@ def upload_post_files(request, slug):
     order = post.files.count()
     created = []
     for f in files:
-        pf = PostFile.objects.create(post=post, file=f, order=order)
+        result = cloudinary.uploader.upload(f, resource_type='raw', folder='posts/files')
+        pf = PostFile.objects.create(
+            post=post,
+            file_url=result['secure_url'],
+            public_id=result['public_id'],
+            file_name=f.name,
+            order=order,
+        )
         order += 1
         created.append(pf)
-    serializer = PostFileSerializer(created, many=True, context={'request': request})
+    serializer = PostFileSerializer(created, many=True)
     return Response(serializer.data, status=201)
 
 
 @api_view(['DELETE'])
 @permission_classes([permissions.IsAuthenticated])
 def delete_post_file(request, slug, file_id):
-    """Delete a file from a post."""
+    """Delete a file from a post and Cloudinary."""
     try:
         post = Post.objects.get(slug=slug, author=request.user)
     except Post.DoesNotExist:
         return Response({'error': 'Post no encontrado.'}, status=404)
     try:
         pf = post.files.get(id=file_id)
-        pf.file.delete()
+        if pf.public_id:
+            cloudinary.uploader.destroy(pf.public_id, resource_type='raw')
         pf.delete()
         return Response({'message': 'Archivo eliminado.'})
     except PostFile.DoesNotExist:

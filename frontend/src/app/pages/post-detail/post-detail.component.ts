@@ -47,9 +47,15 @@ import { Post } from '../../models/post.model';
           @if (post.images && post.images.length > 0) {
             <div class="gallery">
               @for (img of post.images; track img.id) {
-                <div class="gallery-item" (click)="openModal(img.image_url)">
-                  <img [src]="img.image_url" [alt]="post.title">
-                </div>
+                @if (img.resource_type === 'video') {
+                  <div class="gallery-item gallery-video">
+                    <video [src]="img.image_url" controls preload="metadata"></video>
+                  </div>
+                } @else {
+                  <div class="gallery-item" (click)="openModal(img.image_url)">
+                    <img [src]="img.image_url" [alt]="post.title">
+                  </div>
+                }
               }
             </div>
           }
@@ -219,6 +225,14 @@ import { Post } from '../../models/post.model';
       width: 100%;
       aspect-ratio: 4/3;
       object-fit: cover;
+      display: block;
+    }
+    .gallery-video {
+      cursor: default;
+    }
+    .gallery-video video {
+      width: 100%;
+      border-radius: var(--radius);
       display: block;
     }
     .modal-overlay {

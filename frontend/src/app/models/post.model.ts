@@ -2,6 +2,7 @@ export interface PostImage {
   id: number;
   image_url: string;
   order: number;
+  resource_type: string;
 }
 
 export interface PostFileItem {

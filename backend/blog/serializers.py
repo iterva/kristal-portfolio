@@ -4,31 +4,15 @@ from .models import Post, Profile, ProfilePhoto, PostImage, PostFile
 
 
 class PostImageSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
-
     class Meta:
         model = PostImage
-        fields = ['id', 'image_url', 'order']
-
-    def get_image_url(self, obj):
-        request = self.context.get('request')
-        if request:
-            return request.build_absolute_uri(obj.image.url)
-        return obj.image.url
+        fields = ['id', 'image_url', 'order', 'resource_type']
 
 
 class PostFileSerializer(serializers.ModelSerializer):
-    file_url = serializers.SerializerMethodField()
-
     class Meta:
         model = PostFile
         fields = ['id', 'file_url', 'file_name', 'order']
-
-    def get_file_url(self, obj):
-        request = self.context.get('request')
-        if request:
-            return request.build_absolute_uri(obj.file.url)
-        return obj.file.url
 
 
 class ProfilePhotoSerializer(serializers.ModelSerializer):
@@ -99,10 +83,7 @@ class PostListSerializer(serializers.ModelSerializer):
             return obj.image.url
         first_img = obj.images.first()
         if first_img:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(first_img.image.url)
-            return first_img.image.url
+            return first_img.image_url
         return None
 
     def get_tags_list(self, obj):
@@ -155,10 +136,10 @@ class PostDetailSerializer(serializers.ModelSerializer):
         return []
 
     def get_images(self, obj):
-        return PostImageSerializer(obj.images.all(), many=True, context=self.context).data
+        return PostImageSerializer(obj.images.all(), many=True).data
 
     def get_all_files(self, obj):
-        return PostFileSerializer(obj.files.all(), many=True, context=self.context).data
+        return PostFileSerializer(obj.files.all(), many=True).data
 
 
 class PostCreateSerializer(serializers.ModelSerializer):

@@ -96,7 +96,11 @@ import { forkJoin } from 'rxjs';
             <div class="media-grid">
               @for (img of existingImages; track img.id) {
                 <div class="media-item">
-                  <img [src]="img.image_url" alt="Imagen">
+                  @if (img.resource_type === 'video') {
+                    <video [src]="img.image_url" muted></video>
+                  } @else {
+                    <img [src]="img.image_url" alt="Imagen">
+                  }
                   <button type="button" class="remove-btn" (click)="removeExistingImage(img)" title="Eliminar">
                     <span class="material-icons">close</span>
                   </button>
@@ -508,8 +512,9 @@ export class PostFormComponent implements OnInit {
           forkJoin(uploads).subscribe({
             next: () => this.router.navigate(['/admin']),
             error: (err) => {
+              this.saving = false;
+              this.error = 'El post se guardó pero hubo un error al subir archivos. Intenta editarlo y subirlos de nuevo.';
               console.error('Error uploading files:', err);
-              this.router.navigate(['/admin']);
             }
           });
         } else {
