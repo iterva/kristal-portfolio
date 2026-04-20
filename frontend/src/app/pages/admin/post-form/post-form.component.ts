@@ -85,13 +85,13 @@ import { forkJoin } from 'rxjs';
                 type="file"
                 id="images"
                 (change)="onImagesSelected($event)"
-                accept="image/*"
+                accept="image/*,video/*"
                 multiple
                 class="file-input"
               >
               <label for="images" class="file-label">
                 <span class="material-icons">add_photo_alternate</span>
-                Seleccionar imágenes
+                Seleccionar imágenes / videos
               </label>
             </div>
             <div class="media-grid">
@@ -128,7 +128,14 @@ import { forkJoin } from 'rxjs';
               }
               @for (preview of newImagePreviews; track $index) {
                 <div class="media-item new-item">
-                  <img [src]="preview" alt="Nueva imagen">
+                  @if (preview === '__video__') {
+                    <div class="video-placeholder">
+                      <span class="material-icons">videocam</span>
+                      <span>{{ newImageFiles[$index]?.name }}</span>
+                    </div>
+                  } @else {
+                    <img [src]="preview" alt="Nueva imagen">
+                  }
                   <button type="button" class="remove-btn" (click)="removeNewImage($index)" title="Eliminar">
                     <span class="material-icons">close</span>
                   </button>
@@ -648,11 +655,15 @@ export class PostFormComponent implements OnInit {
           return;
         }
         this.newImageFiles.push(file);
-        const reader = new FileReader();
-        reader.onload = () => {
-          this.newImagePreviews.push(reader.result as string);
-        };
-        reader.readAsDataURL(file);
+        if (isVideo) {
+          this.newImagePreviews.push('__video__');
+        } else {
+          const reader = new FileReader();
+          reader.onload = () => {
+            this.newImagePreviews.push(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+        }
       }
       this.error = '';
       input.value = '';
@@ -834,10 +845,11 @@ export class PostFormComponent implements OnInit {
               }
             };
 
-            // Upload images directly to Cloudinary
+            // Upload images/videos directly to Cloudinary
             this.newImageFiles.forEach((file, i) => {
               const itemIndex = i;
-              this.cloudinaryService.uploadFile(file, imgSig!, 'auto').subscribe({
+              const resType = file.type.startsWith('video/') ? 'video' : 'auto';
+              this.cloudinaryService.uploadFile(file, imgSig!, resType).subscribe({
                 next: (progress) => {
                   this.uploadItems[itemIndex].progress = progress.progress;
                   if (progress.done) {
