@@ -162,9 +162,11 @@ class PostDetailSerializer(serializers.ModelSerializer):
 
 
 class PostCreateSerializer(serializers.ModelSerializer):
+    slug = serializers.SlugField(read_only=True)
+
     class Meta:
         model = Post
-        fields = ['title', 'excerpt', 'content', 'image', 'file', 'tags', 'published']
+        fields = ['slug', 'title', 'excerpt', 'content', 'image', 'file', 'tags', 'published']
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
